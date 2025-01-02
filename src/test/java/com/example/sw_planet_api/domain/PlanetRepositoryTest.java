@@ -1,10 +1,10 @@
 package com.example.sw_planet_api.domain;
 
-import static com.example.sw_planet_api.common.PlanetConstants.INVALID_PLANET;
-import static com.example.sw_planet_api.common.PlanetConstants.PLANET;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static com.example.sw_planet_api.common.PlanetConstants.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -12,7 +12,12 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.data.domain.Example;
+import org.springframework.test.context.jdbc.Sql;
 
+import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 @DataJpaTest
@@ -46,7 +51,7 @@ public class PlanetRepositoryTest {
 
     @Test
     public void createPlanet_WithExistingName_ThrowsException() {
-        Planet planet = testEntityManager.persistFlushFind(PLANET);
+        Planet planet = testEntityManager.persistFlushFind(new Planet("name", "climate", "terrain"));
         testEntityManager.detach(planet);
         planet.setId(null);
 
@@ -75,5 +80,75 @@ public class PlanetRepositoryTest {
                 Arguments.of(new Planet("", "climate", "")),
                 Arguments.of(new Planet("name", "", "")),
                 Arguments.of(new Planet("", "", "")));
+    }
+
+    @Test
+    public void getPlanet_ByExistingId_ReturnsPlanet() {
+        Planet planet = testEntityManager.persistFlushFind(new Planet("name", "climate", "terrain"));
+
+        Optional<Planet> planetOpt = planetRepository.findById(planet.getId());
+
+        assertThat(planetOpt).isNotEmpty();
+        assertThat(planetOpt.get()).isEqualTo(planet);
+    }
+
+    @Test
+    public void getPlanet_ByUnexistingId_ReturnsEmpty() {
+        Optional<Planet> planetOpt = planetRepository.findById(1L);
+
+        assertThat(planetOpt).isEmpty();
+    }
+
+    @Test
+    public void getPlanet_ByExistingName_ReturnsPlanet() {
+        Planet planet = testEntityManager.persistFlushFind(PLANET);
+
+        Optional<Planet> planetOpt = planetRepository.findByName(planet.getName());
+
+        assertThat(planetOpt).isNotEmpty();
+        assertThat(planetOpt.get()).isEqualTo(planet);
+    }
+
+    @Test
+    public void getPlanet_ByUnexistingName_ReturnsNotFound() {
+        Optional<Planet> planetOpt = planetRepository.findByName("name");
+
+        assertThat(planetOpt).isEmpty();
+    }
+
+    @Sql(scripts = "/import_planets.sql")
+    @Test
+    public void listPlanets_ReturnsFilteredPlanets() {
+        Example<Planet> queryWithoutFilters = QueryBuilder.makeQuery(new Planet());
+        Example<Planet> queryWithFilters = QueryBuilder.makeQuery(new Planet(TATOOINE.getClimate(), TATOOINE.getTerrain()));
+
+        List<Planet> responseWithoutFilters = planetRepository.findAll(queryWithoutFilters);
+        List<Planet> responseWithFilters = planetRepository.findAll(queryWithFilters);
+
+        assertThat(responseWithoutFilters).isNotEmpty();
+        assertThat(responseWithoutFilters).hasSize(3);
+        assertThat(responseWithFilters).isNotEmpty();
+        assertThat(responseWithFilters).hasSize(1);
+        assertThat(responseWithFilters.get(0)).isEqualTo(TATOOINE);
+    }
+
+    @Test
+    public void listPlanets_ReturnsNoPlanets() {
+        Example<Planet> query = QueryBuilder.makeQuery(new Planet());
+
+        List<Planet> response = planetRepository.findAll(query);
+
+        assertThat(response).isEmpty();
+    }
+
+    @Test
+    public void removePlanet_WithExistingId_RemovesPlanetFromDatabase() {
+        Planet planet = testEntityManager.persistFlushFind(new Planet("name", "climate", "terrain"));
+        planetRepository.deleteById(planet.getId());
+
+        testEntityManager.flush();
+
+        Planet removedPlanet = testEntityManager.find(Planet.class, planet.getId());
+        assertThat(removedPlanet).isNull();
     }
 }
