@@ -1,5 +1,6 @@
 package com.example.sw_planet_api.domain;
 
+import com.example.sw_planet_api.jacoco.ExcludeFromJacocoGenerateReport;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotEmpty;
 import org.apache.commons.lang3.builder.EqualsBuilder;
@@ -82,6 +83,7 @@ public class Planet {
         return EqualsBuilder.reflectionEquals(obj, this);
     }
 
+    @ExcludeFromJacocoGenerateReport
     @Override
     public String toString() {
         return "Planet{" +
